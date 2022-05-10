@@ -754,39 +754,6 @@ class Document:
                     widths.append(current_widths)
                 current_widths.append(font.widths[i])
             font_type = 'otf' if font.file_content[:4] == b'OTTO' else 'ttf'
-            if not font.bitmap:
-                font_descriptor = pydyf.Dictionary({
-                    'Type': '/FontDescriptor',
-                    'FontName': font.name,
-                    'FontFamily': pydyf.String(font.family),
-                    'Flags': font.flags,
-                    'FontBBox': pydyf.Array(font.bbox),
-                    'ItalicAngle': font.italic_angle,
-                    'Ascent': font.ascent,
-                    'Descent': font.descent,
-                    'CapHeight': font.bbox[3],
-                    'StemV': font.stemv,
-                    'StemH': font.stemh,
-                    (f'FontFile{3 if font_type == "otf" else 2}'):
-                        font_references_by_file_hash[font.hash],
-                })
-                if font_type == 'otf':
-                    font_descriptor['Subtype'] = '/OpenType'
-                pdf.add_object(font_descriptor)
-                subfont_dictionary = pydyf.Dictionary({
-                    'Type': '/Font',
-                    'Subtype': f'/CIDFontType{0 if font_type == "otf" else 2}',
-                    'BaseFont': font.name,
-                    'CIDSystemInfo': pydyf.Dictionary({
-                        'Registry': pydyf.String('Adobe'),
-                        'Ordering': pydyf.String('Identity'),
-                        'Supplement': 0,
-                    }),
-                    'W': widths,
-                    'FontDescriptor': font_descriptor.reference,
-                })
-                pdf.add_object(subfont_dictionary)
-
             to_unicode = pydyf.Stream([
                 b'/CIDInit /ProcSet findresource begin',
                 b'12 dict begin',
@@ -820,6 +787,7 @@ class Document:
                 'BaseFont': font.name,
                 'ToUnicode': to_unicode.reference,
             })
+
             if font.bitmap:
                 font_dictionary['FontBBox'] = pydyf.Array([0, 0, 1, 1])
                 font_dictionary['FontMatrix'] = pydyf.Array([1, 0, 0, 1, 0, 0])
@@ -886,10 +854,43 @@ class Document:
                 font_dictionary['Widths'] = pydyf.Array([
                     font.widths.get(i, 0) / bitmap_height for i in range(256)])
                 font_dictionary['CharProcs'] = char_procs.reference
+
             else:
+                font_descriptor = pydyf.Dictionary({
+                    'Type': '/FontDescriptor',
+                    'FontName': font.name,
+                    'FontFamily': pydyf.String(font.family),
+                    'Flags': font.flags,
+                    'FontBBox': pydyf.Array(font.bbox),
+                    'ItalicAngle': font.italic_angle,
+                    'Ascent': font.ascent,
+                    'Descent': font.descent,
+                    'CapHeight': font.bbox[3],
+                    'StemV': font.stemv,
+                    'StemH': font.stemh,
+                    (f'FontFile{3 if font_type == "otf" else 2}'):
+                        font_references_by_file_hash[font.hash],
+                })
+                if font_type == 'otf':
+                    font_descriptor['Subtype'] = '/OpenType'
+                pdf.add_object(font_descriptor)
+                subfont_dictionary = pydyf.Dictionary({
+                    'Type': '/Font',
+                    'Subtype': f'/CIDFontType{0 if font_type == "otf" else 2}',
+                    'BaseFont': font.name,
+                    'CIDSystemInfo': pydyf.Dictionary({
+                        'Registry': pydyf.String('Adobe'),
+                        'Ordering': pydyf.String('Identity'),
+                        'Supplement': 0,
+                    }),
+                    'W': widths,
+                    'FontDescriptor': font_descriptor.reference,
+                })
+                pdf.add_object(subfont_dictionary)
                 font_dictionary['Encoding'] = '/Identity-H'
                 font_dictionary['DescendantFonts'] = pydyf.Array(
                     [subfont_dictionary.reference])
+
             pdf.add_object(font_dictionary)
             pdf_fonts[font.hash] = font_dictionary.reference
 
